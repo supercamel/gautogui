@@ -45,9 +45,10 @@ On Wayland/XWayland these examples report that true system-wide monitoring is
 unavailable. For XWayland-limited testing, prefix the command with
 `GAUTOGUI_FORCE_X11=1`.
 
-There is also a Windows-focused SqGI automation demo that moves the mouse,
-opens the Start menu with the Super/Windows key, launches Notepad, and types a
-short line with an explicit inter-character delay:
+There is also a Windows-focused SqGI automation demo that uses SqGI
+`async`/`await`, moves the mouse, opens the Start menu with the Super/Windows
+key, launches Notepad, and types a short line with an explicit
+inter-character delay:
 
 ```sh
 sqgi examples/notepad-demo.nut
