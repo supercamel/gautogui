@@ -1,0 +1,76 @@
+# gautogui
+
+gautogui is a GObject/C library for system-wide GUI input monitoring and
+automation.
+
+It provides a `GAutoguiController` object that can:
+
+- emit signals for global mouse movement, clicks, scrolls, and keyboard events;
+- read and move the mouse pointer;
+- inject mouse clicks, scrolls, key presses, and text.
+
+## Platform support
+
+- Windows: low-level mouse/keyboard hooks plus `SendInput`.
+- Linux: X11/Xorg via XInput2 raw events plus XTest injection.
+
+Wayland does not expose a generic client API for system-wide input hooks or
+input injection. On Wayland/XWayland sessions, gautogui returns a backend error
+instead of pretending it can observe input it cannot legally access. Set
+`GAUTOGUI_FORCE_X11=1` only when XWayland-limited behavior is acceptable.
+
+## Build
+
+```sh
+meson setup build
+meson compile -C build
+meson test -C build
+```
+
+## Language Examples
+
+From the build tree:
+
+```sh
+GI_TYPELIB_PATH=build/src LD_LIBRARY_PATH=build/src python3 examples/monitor.py
+./build/examples/gautogui-monitor-vala
+GI_TYPELIB_PATH=build/src LD_LIBRARY_PATH=build/src sqgi examples/monitor.nut
+```
+
+On Wayland/XWayland these examples report that true system-wide monitoring is
+unavailable. For XWayland-limited testing, prefix the command with
+`GAUTOGUI_FORCE_X11=1`.
+
+## Minimal example
+
+```c
+#include <gautogui/gautogui.h>
+
+static void
+on_key_event(GAutoguiController *controller,
+             guint native_keycode,
+             guint key,
+             gboolean pressed,
+             gpointer user_data)
+{
+  g_print("key %u %s\n", key, pressed ? "down" : "up");
+}
+
+int
+main(void)
+{
+  g_autoptr(GAutoguiController) controller = gautogui_controller_new();
+  g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
+  g_autoptr(GError) error = NULL;
+
+  g_signal_connect(controller, "key-event", G_CALLBACK(on_key_event), NULL);
+
+  if (!gautogui_controller_start(controller, &error)) {
+    g_printerr("%s\n", error->message);
+    return 1;
+  }
+
+  g_main_loop_run(loop);
+  return 0;
+}
+```

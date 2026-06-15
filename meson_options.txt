@@ -1,0 +1,6 @@
+option(
+  'introspection',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build and install GObject introspection metadata',
+)
