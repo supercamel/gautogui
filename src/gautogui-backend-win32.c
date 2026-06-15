@@ -17,6 +17,29 @@ struct _GAutoguiBackend {
 
 static GMutex active_lock;
 static GAutoguiBackend *active_backend;
+static HINSTANCE gautogui_module_handle;
+
+BOOL WINAPI
+DllMain(HINSTANCE instance,
+        DWORD reason,
+        LPVOID reserved)
+{
+  (void)reserved;
+
+  if (reason == DLL_PROCESS_ATTACH)
+    gautogui_module_handle = instance;
+
+  return TRUE;
+}
+
+static HINSTANCE
+get_hook_module_handle(void)
+{
+  if (gautogui_module_handle != NULL)
+    return gautogui_module_handle;
+
+  return GetModuleHandleW(NULL);
+}
 
 static GAutoguiBackend *
 get_active_backend(void)
@@ -318,11 +341,11 @@ hook_thread(gpointer user_data)
 
   backend->mouse_hook = SetWindowsHookExW(WH_MOUSE_LL,
                                           mouse_hook_proc,
-                                          GetModuleHandleW(NULL),
+                                          get_hook_module_handle(),
                                           0);
   backend->keyboard_hook = SetWindowsHookExW(WH_KEYBOARD_LL,
                                              keyboard_hook_proc,
-                                             GetModuleHandleW(NULL),
+                                             get_hook_module_handle(),
                                              0);
 
   g_mutex_lock(&backend->state_lock);
