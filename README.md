@@ -42,8 +42,7 @@ unavailable. For XWayland-limited testing, prefix the command with
 `GAUTOGUI_FORCE_X11=1`.
 
 There is also a Windows-focused SqGI automation demo that moves the mouse,
-opens the Start menu with the Super/Windows key, launches Notepad, and types a
-short line:
+opens the Run dialog with `Win+R`, launches Notepad, and types a short line:
 
 ```sh
 sqgi examples/notepad-demo.nut
