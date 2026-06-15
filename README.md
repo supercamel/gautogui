@@ -3,6 +3,11 @@
 gautogui is a GObject/C library for system-wide GUI input monitoring and
 automation.
 
+Documentation: https://gautogui.readthedocs.io/
+
+Companion SQGI GTK4 monitor app:
+https://github.com/supercamel/sqgi_gautogui
+
 It provides a `GAutoguiController` object that can:
 
 - emit signals for global mouse movement, clicks, scrolls, and keyboard events;
@@ -35,7 +40,10 @@ meson test -C build
 
 ## Documentation
 
-Read the Docs sources live in `docs/`. To build them locally:
+The hosted documentation is available on Read the Docs:
+https://gautogui.readthedocs.io/
+
+Documentation sources live in `docs/`. To build them locally:
 
 ```sh
 python3 -m venv /tmp/gautogui-docs-venv
