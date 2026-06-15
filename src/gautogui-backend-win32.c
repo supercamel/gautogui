@@ -661,6 +661,7 @@ _gautogui_backend_key(GAutoguiBackend *backend,
 gboolean
 _gautogui_backend_type_text(GAutoguiBackend *backend,
                             const gchar *utf8,
+                            guint delay_ms,
                             GError **error)
 {
   gunichar2 *utf16;
@@ -687,6 +688,9 @@ _gautogui_backend_type_text(GAutoguiBackend *backend,
       g_free(utf16);
       return FALSE;
     }
+
+    if (delay_ms > 0 && i + 1 < n_units)
+      Sleep(delay_ms);
   }
 
   g_free(utf16);

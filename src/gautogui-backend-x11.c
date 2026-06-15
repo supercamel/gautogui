@@ -899,6 +899,7 @@ _gautogui_backend_key(GAutoguiBackend *backend,
 gboolean
 _gautogui_backend_type_text(GAutoguiBackend *backend,
                             const gchar *utf8,
+                            guint delay_ms,
                             GError **error)
 {
   KeyCode shift_keycode;
@@ -935,6 +936,12 @@ _gautogui_backend_type_text(GAutoguiBackend *backend,
     XTestFakeKeyEvent(backend->display, keycode, False, CurrentTime);
     if (text_key.shift)
       XTestFakeKeyEvent(backend->display, shift_keycode, False, CurrentTime);
+
+    XFlush(backend->display);
+    XUnlockDisplay(backend->display);
+    if (delay_ms > 0 && *(g_utf8_next_char(p)) != '\0')
+      g_usleep((gulong)delay_ms * 1000);
+    XLockDisplay(backend->display);
   }
 
   XFlush(backend->display);

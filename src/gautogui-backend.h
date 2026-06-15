@@ -37,6 +37,7 @@ gboolean _gautogui_backend_key(GAutoguiBackend *backend,
                                GError **error);
 gboolean _gautogui_backend_type_text(GAutoguiBackend *backend,
                                      const gchar *utf8,
+                                     guint delay_ms,
                                      GError **error);
 
 G_END_DECLS

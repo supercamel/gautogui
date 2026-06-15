@@ -9,6 +9,10 @@ It provides a `GAutoguiController` object that can:
 - read and move the mouse pointer;
 - inject mouse clicks, scrolls, key presses, and text.
 
+Text injection is paced by default to avoid dropped keystrokes in real
+applications. Use `gautogui_controller_type_text_with_delay()` or the
+equivalent binding method to choose the inter-character delay explicitly.
+
 ## Platform support
 
 - Windows: low-level mouse/keyboard hooks plus `SendInput`.
@@ -42,7 +46,8 @@ unavailable. For XWayland-limited testing, prefix the command with
 `GAUTOGUI_FORCE_X11=1`.
 
 There is also a Windows-focused SqGI automation demo that moves the mouse,
-opens the Run dialog with `Win+R`, launches Notepad, and types a short line:
+opens the Start menu with the Super/Windows key, launches Notepad, and types a
+short line with an explicit inter-character delay:
 
 ```sh
 sqgi examples/notepad-demo.nut

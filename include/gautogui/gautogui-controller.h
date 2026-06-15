@@ -219,9 +219,38 @@ GAUTOGUI_API gboolean gautogui_controller_key_up(GAutoguiController *self,
 GAUTOGUI_API gboolean gautogui_controller_press_key(GAutoguiController *self,
                                                     GAutoguiKey key,
                                                     GError **error);
+
+/**
+ * gautogui_controller_type_text:
+ * @self: a #GAutoguiController
+ * @utf8: valid UTF-8 text to type
+ * @error: return location for a #GError, or %NULL
+ *
+ * Types @utf8 using the backend's default inter-character delay.
+ *
+ * Returns: %TRUE on success, %FALSE with @error set on failure
+ */
 GAUTOGUI_API gboolean gautogui_controller_type_text(GAutoguiController *self,
                                                     const gchar *utf8,
                                                     GError **error);
+
+/**
+ * gautogui_controller_type_text_with_delay:
+ * @self: a #GAutoguiController
+ * @utf8: valid UTF-8 text to type
+ * @delay_ms: delay in milliseconds between typed characters
+ * @error: return location for a #GError, or %NULL
+ *
+ * Types @utf8 with an explicit delay between characters. Use this when the
+ * target application or operating system drops keystrokes if input arrives too
+ * quickly. Pass 0 to request no inter-character delay.
+ *
+ * Returns: %TRUE on success, %FALSE with @error set on failure
+ */
+GAUTOGUI_API gboolean gautogui_controller_type_text_with_delay(GAutoguiController *self,
+                                                               const gchar *utf8,
+                                                               guint delay_ms,
+                                                               GError **error);
 
 G_END_DECLS
 

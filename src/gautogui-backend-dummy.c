@@ -123,10 +123,12 @@ _gautogui_backend_key(GAutoguiBackend *backend,
 gboolean
 _gautogui_backend_type_text(GAutoguiBackend *backend,
                             const gchar *utf8,
+                            guint delay_ms,
                             GError **error)
 {
   (void)backend;
   (void)utf8;
+  (void)delay_ms;
   g_set_error(error,
               GAUTOGUI_ERROR,
               GAUTOGUI_ERROR_BACKEND_UNAVAILABLE,

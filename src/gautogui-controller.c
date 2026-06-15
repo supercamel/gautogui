@@ -23,6 +23,8 @@ enum {
 
 static guint signals[N_SIGNALS];
 
+#define DEFAULT_TYPE_TEXT_DELAY_MS 35
+
 typedef struct {
   GAutoguiController *self;
   gint x;
@@ -539,6 +541,18 @@ gautogui_controller_type_text(GAutoguiController *self,
                               const gchar *utf8,
                               GError **error)
 {
+  return gautogui_controller_type_text_with_delay(self,
+                                                 utf8,
+                                                 DEFAULT_TYPE_TEXT_DELAY_MS,
+                                                 error);
+}
+
+gboolean
+gautogui_controller_type_text_with_delay(GAutoguiController *self,
+                                         const gchar *utf8,
+                                         guint delay_ms,
+                                         GError **error)
+{
   GAutoguiBackend *backend;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
@@ -559,7 +573,7 @@ gautogui_controller_type_text(GAutoguiController *self,
   backend = self->backend;
   g_mutex_unlock(&self->lock);
 
-  return _gautogui_backend_type_text(backend, utf8, error);
+  return _gautogui_backend_type_text(backend, utf8, delay_ms, error);
 }
 
 void

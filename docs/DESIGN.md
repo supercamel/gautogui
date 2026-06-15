@@ -52,10 +52,14 @@ Automation calls:
 - `gautogui_controller_key_up()`
 - `gautogui_controller_press_key()`
 - `gautogui_controller_type_text()`
+- `gautogui_controller_type_text_with_delay()`
 
 The portable key enum covers letters, digits, common punctuation, navigation
 keys, modifiers, and F1-F24. `type_text()` is the preferred API for entering
-text because it can handle layout-specific modifier needs.
+text because it can handle layout-specific modifier needs. `type_text()` uses a
+small default pause between characters so target applications do not drop
+bursty synthetic input; `type_text_with_delay()` lets callers tune that pause or
+set it to zero.
 
 ## Backend contract
 
