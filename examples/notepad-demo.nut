@@ -39,7 +39,7 @@ async function main() {
         await sqgi.sleep(1200)
 
         say("Typing a short line into Notepad...")
-        await controller.type_text_with_delay_async("Hello from gautogui via SqGI!\n", 35)
+        await controller.type_text_with_delay_async("Hello from gautogui via SQGI!\n", 35)
 
         say("Done.")
     } catch (error) {

@@ -5,7 +5,7 @@ Build requirements
 ------------------
 
 gautogui is built with Meson and uses GLib/GObject/GIO. GObject
-Introspection is required for Python, Vala, SqGI, and other binding users.
+Introspection is required for Python, Vala, SQGI, and other binding users.
 
 Linux/X11 builds also require X11, XInput2, and XTest development headers.
 Wayland sessions are detected at runtime, but the current Linux backend is
@@ -105,7 +105,7 @@ Install from the repository root:
    sudo ldconfig
 
 ``ldconfig`` refreshes the dynamic linker cache on Linux. Without it, tools
-such as Python and SqGI may find the ``Gautogui-1.0.typelib`` but fail to load
+such as Python and SQGI may find the ``Gautogui-1.0.typelib`` but fail to load
 ``libgautogui-1.0.so``.
 
 After installation, these commands should work without build-tree variables:

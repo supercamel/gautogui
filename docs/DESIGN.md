@@ -58,7 +58,7 @@ The pointer/query and injection calls also expose GIO-style asynchronous
 variants named `*_async()` and `*_finish()`. These wrappers run the synchronous
 backend operation in a `GTask` worker thread, return results through the
 controller's caller context, and are intended for bindings such as Vala, Python,
-and SqGI that can map GLib async patterns onto `await`-style code. Cancellation
+and SQGI that can map GLib async patterns onto `await`-style code. Cancellation
 is checked before the worker starts; once native input injection has begun, the
 operation runs to completion.
 

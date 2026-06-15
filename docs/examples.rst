@@ -119,10 +119,10 @@ menu, launches Notepad, and types text.
        return status;
    }
 
-SqGI monitor
+SQGI monitor
 ------------
 
-Run the SqGI monitor from the source tree:
+Run the SQGI monitor from the source tree:
 
 .. code-block:: sh
 
@@ -178,10 +178,10 @@ Source:
 
    return 0
 
-SqGI async automation
+SQGI async automation
 ---------------------
 
-The SqGI binding exposes awaitable convenience methods for the GLib async API.
+The SQGI binding exposes awaitable convenience methods for the GLib async API.
 This example is the same Windows-focused Notepad demo installed in
 ``examples/notepad-demo.nut``.
 
@@ -235,7 +235,7 @@ Source:
 
            say("Typing a short line into Notepad...")
            await controller.type_text_with_delay_async(
-               "Hello from gautogui via SqGI!\n",
+               "Hello from gautogui via SQGI!\n",
                35)
 
            say("Done.")
