@@ -17,29 +17,29 @@ async function main() {
         local y = pos[1]
 
         say("Moving the mouse in a small square...")
-        controller.move_mouse(x + 40, y)
+        await controller.move_mouse_async(x + 40, y)
         await sqgi.sleep(120)
-        controller.move_mouse(x + 40, y + 40)
+        await controller.move_mouse_async(x + 40, y + 40)
         await sqgi.sleep(120)
-        controller.move_mouse(x, y + 40)
+        await controller.move_mouse_async(x, y + 40)
         await sqgi.sleep(120)
-        controller.move_mouse(x, y)
+        await controller.move_mouse_async(x, y)
         await sqgi.sleep(250)
 
         say("Opening the Windows Start menu...")
-        controller.press_key(Gautogui.Key.super)
+        await controller.press_key_async(Gautogui.Key.super)
         await sqgi.sleep(500)
 
         say("Typing notepad...")
-        controller.type_text_with_delay("notepad", 45)
+        await controller.type_text_with_delay_async("notepad", 45)
         await sqgi.sleep(250)
 
         say("Pressing Enter...")
-        controller.press_key(Gautogui.Key.enter)
+        await controller.press_key_async(Gautogui.Key.enter)
         await sqgi.sleep(1200)
 
         say("Typing a short line into Notepad...")
-        controller.type_text_with_delay("Hello from gautogui via SqGI!\n", 35)
+        await controller.type_text_with_delay_async("Hello from gautogui via SqGI!\n", 35)
 
         say("Done.")
     } catch (error) {

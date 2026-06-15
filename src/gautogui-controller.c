@@ -1,5 +1,7 @@
 #include "gautogui-backend.h"
 
+#include <gio/gio.h>
+
 struct _GAutoguiController {
   GObject parent_instance;
 
@@ -7,6 +9,7 @@ struct _GAutoguiController {
   GAutoguiBackend *backend;
   gboolean running;
   GMutex lock;
+  GMutex automation_lock;
 };
 
 G_DEFINE_TYPE(GAutoguiController, gautogui_controller, G_TYPE_OBJECT)
@@ -53,6 +56,46 @@ typedef struct {
   GAutoguiKey key;
   gboolean pressed;
 } KeyEvent;
+
+typedef enum {
+  ASYNC_OPERATION_GET_MOUSE_POSITION,
+  ASYNC_OPERATION_MOVE_MOUSE,
+  ASYNC_OPERATION_MOUSE_DOWN,
+  ASYNC_OPERATION_MOUSE_UP,
+  ASYNC_OPERATION_CLICK,
+  ASYNC_OPERATION_SCROLL,
+  ASYNC_OPERATION_KEY_DOWN,
+  ASYNC_OPERATION_KEY_UP,
+  ASYNC_OPERATION_PRESS_KEY,
+  ASYNC_OPERATION_TYPE_TEXT,
+} AsyncOperation;
+
+typedef struct {
+  AsyncOperation operation;
+  gint x;
+  gint y;
+  gint dx;
+  gint dy;
+  GAutoguiMouseButton button;
+  GAutoguiKey key;
+  gchar *utf8;
+  guint delay_ms;
+} AsyncTaskData;
+
+typedef struct {
+  gint x;
+  gint y;
+} AsyncMousePosition;
+
+static void
+async_task_data_free(AsyncTaskData *data)
+{
+  if (data == NULL)
+    return;
+
+  g_free(data->utf8);
+  g_free(data);
+}
 
 static gboolean
 emit_mouse_moved_cb(gpointer user_data)
@@ -141,6 +184,7 @@ gautogui_controller_finalize(GObject *object)
   }
 
   g_clear_pointer(&self->context, g_main_context_unref);
+  g_mutex_clear(&self->automation_lock);
   g_mutex_clear(&self->lock);
 
   G_OBJECT_CLASS(gautogui_controller_parent_class)->finalize(object);
@@ -278,6 +322,7 @@ gautogui_controller_init(GAutoguiController *self)
 
   self->context = g_main_context_ref(thread_context != NULL ? thread_context : g_main_context_default());
   g_mutex_init(&self->lock);
+  g_mutex_init(&self->automation_lock);
 }
 
 static gboolean
@@ -289,6 +334,114 @@ ensure_backend(GAutoguiController *self,
 
   self->backend = _gautogui_backend_new(self, error);
   return self->backend != NULL;
+}
+
+static gboolean
+get_backend(GAutoguiController *self,
+            GAutoguiBackend **backend,
+            GError **error)
+{
+  g_mutex_lock(&self->lock);
+  if (!ensure_backend(self, error)) {
+    g_mutex_unlock(&self->lock);
+    return FALSE;
+  }
+
+  *backend = self->backend;
+  g_mutex_unlock(&self->lock);
+  return TRUE;
+}
+
+static gboolean
+controller_get_mouse_position_internal(GAutoguiController *self,
+                                       gint *x,
+                                       gint *y,
+                                       GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_get_mouse_position(backend, x, y, error);
+}
+
+static gboolean
+controller_move_mouse_internal(GAutoguiController *self,
+                               gint x,
+                               gint y,
+                               GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_move_mouse(backend, x, y, error);
+}
+
+static gboolean
+controller_mouse_button_internal(GAutoguiController *self,
+                                 GAutoguiMouseButton button,
+                                 gboolean pressed,
+                                 GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_mouse_button(backend, button, pressed, error);
+}
+
+static gboolean
+controller_scroll_internal(GAutoguiController *self,
+                           gint dx,
+                           gint dy,
+                           GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_scroll(backend, dx, dy, error);
+}
+
+static gboolean
+controller_key_internal(GAutoguiController *self,
+                        GAutoguiKey key,
+                        gboolean pressed,
+                        GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_key(backend, key, pressed, error);
+}
+
+static gboolean
+controller_type_text_with_delay_internal(GAutoguiController *self,
+                                         const gchar *utf8,
+                                         guint delay_ms,
+                                         GError **error)
+{
+  GAutoguiBackend *backend;
+
+  if (utf8 == NULL || !g_utf8_validate(utf8, -1, NULL)) {
+    g_set_error(error,
+                GAUTOGUI_ERROR,
+                GAUTOGUI_ERROR_INVALID_ARGUMENT,
+                "Text must be valid UTF-8");
+    return FALSE;
+  }
+
+  if (!get_backend(self, &backend, error))
+    return FALSE;
+
+  return _gautogui_backend_type_text(backend, utf8, delay_ms, error);
 }
 
 GAutoguiController *
@@ -373,19 +526,9 @@ gautogui_controller_get_mouse_position(GAutoguiController *self,
                                        gint *y,
                                        GError **error)
 {
-  GAutoguiBackend *backend;
-
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
-
-  return _gautogui_backend_get_mouse_position(backend, x, y, error);
+  return controller_get_mouse_position_internal(self, x, y, error);
 }
 
 gboolean
@@ -394,19 +537,15 @@ gautogui_controller_move_mouse(GAutoguiController *self,
                                gint y,
                                GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_move_mouse_internal(self, x, y, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_move_mouse(backend, x, y, error);
+  return ok;
 }
 
 gboolean
@@ -414,19 +553,15 @@ gautogui_controller_mouse_down(GAutoguiController *self,
                                GAutoguiMouseButton button,
                                GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_mouse_button_internal(self, button, TRUE, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_mouse_button(backend, button, TRUE, error);
+  return ok;
 }
 
 gboolean
@@ -434,19 +569,15 @@ gautogui_controller_mouse_up(GAutoguiController *self,
                              GAutoguiMouseButton button,
                              GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_mouse_button_internal(self, button, FALSE, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_mouse_button(backend, button, FALSE, error);
+  return ok;
 }
 
 gboolean
@@ -454,12 +585,20 @@ gautogui_controller_click(GAutoguiController *self,
                           GAutoguiMouseButton button,
                           GError **error)
 {
+  gboolean ok;
+
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  if (!gautogui_controller_mouse_down(self, button, error))
+  g_mutex_lock(&self->automation_lock);
+  if (!controller_mouse_button_internal(self, button, TRUE, error)) {
+    g_mutex_unlock(&self->automation_lock);
     return FALSE;
+  }
 
-  return gautogui_controller_mouse_up(self, button, error);
+  ok = controller_mouse_button_internal(self, button, FALSE, error);
+  g_mutex_unlock(&self->automation_lock);
+
+  return ok;
 }
 
 gboolean
@@ -468,19 +607,15 @@ gautogui_controller_scroll(GAutoguiController *self,
                            gint dy,
                            GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_scroll_internal(self, dx, dy, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_scroll(backend, dx, dy, error);
+  return ok;
 }
 
 gboolean
@@ -488,19 +623,15 @@ gautogui_controller_key_down(GAutoguiController *self,
                              GAutoguiKey key,
                              GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_key_internal(self, key, TRUE, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_key(backend, key, TRUE, error);
+  return ok;
 }
 
 gboolean
@@ -508,19 +639,15 @@ gautogui_controller_key_up(GAutoguiController *self,
                            GAutoguiKey key,
                            GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_key_internal(self, key, FALSE, error);
+  g_mutex_unlock(&self->automation_lock);
 
-  return _gautogui_backend_key(backend, key, FALSE, error);
+  return ok;
 }
 
 gboolean
@@ -528,12 +655,20 @@ gautogui_controller_press_key(GAutoguiController *self,
                               GAutoguiKey key,
                               GError **error)
 {
+  gboolean ok;
+
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  if (!gautogui_controller_key_down(self, key, error))
+  g_mutex_lock(&self->automation_lock);
+  if (!controller_key_internal(self, key, TRUE, error)) {
+    g_mutex_unlock(&self->automation_lock);
     return FALSE;
+  }
 
-  return gautogui_controller_key_up(self, key, error);
+  ok = controller_key_internal(self, key, FALSE, error);
+  g_mutex_unlock(&self->automation_lock);
+
+  return ok;
 }
 
 gboolean
@@ -553,27 +688,528 @@ gautogui_controller_type_text_with_delay(GAutoguiController *self,
                                          guint delay_ms,
                                          GError **error)
 {
-  GAutoguiBackend *backend;
+  gboolean ok;
 
   g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
 
-  if (utf8 == NULL || !g_utf8_validate(utf8, -1, NULL)) {
-    g_set_error(error,
-                GAUTOGUI_ERROR,
-                GAUTOGUI_ERROR_INVALID_ARGUMENT,
-                "Text must be valid UTF-8");
-    return FALSE;
+  g_mutex_lock(&self->automation_lock);
+  ok = controller_type_text_with_delay_internal(self, utf8, delay_ms, error);
+  g_mutex_unlock(&self->automation_lock);
+
+  return ok;
+}
+
+static void
+async_task_return_error(GTask *task,
+                        GError *error)
+{
+  if (error != NULL) {
+    g_task_return_error(task, error);
+    return;
   }
 
-  g_mutex_lock(&self->lock);
-  if (!ensure_backend(self, error)) {
-    g_mutex_unlock(&self->lock);
-    return FALSE;
-  }
-  backend = self->backend;
-  g_mutex_unlock(&self->lock);
+  g_task_return_new_error(task,
+                          GAUTOGUI_ERROR,
+                          GAUTOGUI_ERROR_PLATFORM_ERROR,
+                          "Automation operation failed");
+}
 
-  return _gautogui_backend_type_text(backend, utf8, delay_ms, error);
+static void
+async_task_thread(GTask *task,
+                  gpointer source_object,
+                  gpointer task_data,
+                  GCancellable *cancellable)
+{
+  GAutoguiController *self = GAUTOGUI_CONTROLLER(source_object);
+  AsyncTaskData *data = task_data;
+  GError *error = NULL;
+  gboolean ok = FALSE;
+
+  (void)cancellable;
+
+  if (g_task_return_error_if_cancelled(task))
+    return;
+
+  switch (data->operation) {
+  case ASYNC_OPERATION_GET_MOUSE_POSITION: {
+    AsyncMousePosition *position = g_new0(AsyncMousePosition, 1);
+
+    if (!gautogui_controller_get_mouse_position(self, &position->x, &position->y, &error)) {
+      g_free(position);
+      async_task_return_error(task, error);
+      return;
+    }
+
+    g_task_return_pointer(task, position, g_free);
+    return;
+  }
+
+  case ASYNC_OPERATION_MOVE_MOUSE:
+    ok = gautogui_controller_move_mouse(self, data->x, data->y, &error);
+    break;
+
+  case ASYNC_OPERATION_MOUSE_DOWN:
+    ok = gautogui_controller_mouse_down(self, data->button, &error);
+    break;
+
+  case ASYNC_OPERATION_MOUSE_UP:
+    ok = gautogui_controller_mouse_up(self, data->button, &error);
+    break;
+
+  case ASYNC_OPERATION_CLICK:
+    ok = gautogui_controller_click(self, data->button, &error);
+    break;
+
+  case ASYNC_OPERATION_SCROLL:
+    ok = gautogui_controller_scroll(self, data->dx, data->dy, &error);
+    break;
+
+  case ASYNC_OPERATION_KEY_DOWN:
+    ok = gautogui_controller_key_down(self, data->key, &error);
+    break;
+
+  case ASYNC_OPERATION_KEY_UP:
+    ok = gautogui_controller_key_up(self, data->key, &error);
+    break;
+
+  case ASYNC_OPERATION_PRESS_KEY:
+    ok = gautogui_controller_press_key(self, data->key, &error);
+    break;
+
+  case ASYNC_OPERATION_TYPE_TEXT:
+    ok = gautogui_controller_type_text_with_delay(self, data->utf8, data->delay_ms, &error);
+    break;
+  }
+
+  if (ok)
+    g_task_return_boolean(task, TRUE);
+  else
+    async_task_return_error(task, error);
+}
+
+static void
+start_async_operation(GAutoguiController *self,
+                      AsyncTaskData *data,
+                      GCancellable *cancellable,
+                      GAsyncReadyCallback callback,
+                      gpointer user_data,
+                      gpointer source_tag)
+{
+  GTask *task = g_task_new(self, cancellable, callback, user_data);
+
+  g_task_set_source_tag(task, source_tag);
+  g_task_set_task_data(task, data, (GDestroyNotify)async_task_data_free);
+  g_task_run_in_thread(task, async_task_thread);
+  g_object_unref(task);
+}
+
+static gboolean
+finish_boolean_operation(GAutoguiController *self,
+                         GAsyncResult *result,
+                         gpointer source_tag,
+                         GError **error)
+{
+  g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
+  g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+  g_return_val_if_fail(g_async_result_is_tagged(result, source_tag), FALSE);
+
+  return g_task_propagate_boolean(G_TASK(result), error);
+}
+
+void
+gautogui_controller_get_mouse_position_async(GAutoguiController *self,
+                                             GCancellable *cancellable,
+                                             GAsyncReadyCallback callback,
+                                             gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_GET_MOUSE_POSITION;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_get_mouse_position_async);
+}
+
+gboolean
+gautogui_controller_get_mouse_position_finish(GAutoguiController *self,
+                                              GAsyncResult *result,
+                                              gint *x,
+                                              gint *y,
+                                              GError **error)
+{
+  AsyncMousePosition *position;
+
+  g_return_val_if_fail(GAUTOGUI_IS_CONTROLLER(self), FALSE);
+  g_return_val_if_fail(g_task_is_valid(result, self), FALSE);
+  g_return_val_if_fail(g_async_result_is_tagged(result,
+                                                (gpointer)gautogui_controller_get_mouse_position_async),
+                       FALSE);
+
+  position = g_task_propagate_pointer(G_TASK(result), error);
+  if (position == NULL)
+    return FALSE;
+
+  if (x != NULL)
+    *x = position->x;
+  if (y != NULL)
+    *y = position->y;
+
+  g_free(position);
+  return TRUE;
+}
+
+void
+gautogui_controller_move_mouse_async(GAutoguiController *self,
+                                     gint x,
+                                     gint y,
+                                     GCancellable *cancellable,
+                                     GAsyncReadyCallback callback,
+                                     gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_MOVE_MOUSE;
+  data->x = x;
+  data->y = y;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_move_mouse_async);
+}
+
+gboolean
+gautogui_controller_move_mouse_finish(GAutoguiController *self,
+                                      GAsyncResult *result,
+                                      GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_move_mouse_async,
+                                  error);
+}
+
+void
+gautogui_controller_mouse_down_async(GAutoguiController *self,
+                                     GAutoguiMouseButton button,
+                                     GCancellable *cancellable,
+                                     GAsyncReadyCallback callback,
+                                     gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_MOUSE_DOWN;
+  data->button = button;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_mouse_down_async);
+}
+
+gboolean
+gautogui_controller_mouse_down_finish(GAutoguiController *self,
+                                      GAsyncResult *result,
+                                      GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_mouse_down_async,
+                                  error);
+}
+
+void
+gautogui_controller_mouse_up_async(GAutoguiController *self,
+                                   GAutoguiMouseButton button,
+                                   GCancellable *cancellable,
+                                   GAsyncReadyCallback callback,
+                                   gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_MOUSE_UP;
+  data->button = button;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_mouse_up_async);
+}
+
+gboolean
+gautogui_controller_mouse_up_finish(GAutoguiController *self,
+                                    GAsyncResult *result,
+                                    GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_mouse_up_async,
+                                  error);
+}
+
+void
+gautogui_controller_click_async(GAutoguiController *self,
+                                GAutoguiMouseButton button,
+                                GCancellable *cancellable,
+                                GAsyncReadyCallback callback,
+                                gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_CLICK;
+  data->button = button;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_click_async);
+}
+
+gboolean
+gautogui_controller_click_finish(GAutoguiController *self,
+                                 GAsyncResult *result,
+                                 GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_click_async,
+                                  error);
+}
+
+void
+gautogui_controller_scroll_async(GAutoguiController *self,
+                                 gint dx,
+                                 gint dy,
+                                 GCancellable *cancellable,
+                                 GAsyncReadyCallback callback,
+                                 gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_SCROLL;
+  data->dx = dx;
+  data->dy = dy;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_scroll_async);
+}
+
+gboolean
+gautogui_controller_scroll_finish(GAutoguiController *self,
+                                  GAsyncResult *result,
+                                  GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_scroll_async,
+                                  error);
+}
+
+void
+gautogui_controller_key_down_async(GAutoguiController *self,
+                                   GAutoguiKey key,
+                                   GCancellable *cancellable,
+                                   GAsyncReadyCallback callback,
+                                   gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_KEY_DOWN;
+  data->key = key;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_key_down_async);
+}
+
+gboolean
+gautogui_controller_key_down_finish(GAutoguiController *self,
+                                    GAsyncResult *result,
+                                    GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_key_down_async,
+                                  error);
+}
+
+void
+gautogui_controller_key_up_async(GAutoguiController *self,
+                                 GAutoguiKey key,
+                                 GCancellable *cancellable,
+                                 GAsyncReadyCallback callback,
+                                 gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_KEY_UP;
+  data->key = key;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_key_up_async);
+}
+
+gboolean
+gautogui_controller_key_up_finish(GAutoguiController *self,
+                                  GAsyncResult *result,
+                                  GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_key_up_async,
+                                  error);
+}
+
+void
+gautogui_controller_press_key_async(GAutoguiController *self,
+                                    GAutoguiKey key,
+                                    GCancellable *cancellable,
+                                    GAsyncReadyCallback callback,
+                                    gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_PRESS_KEY;
+  data->key = key;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_press_key_async);
+}
+
+gboolean
+gautogui_controller_press_key_finish(GAutoguiController *self,
+                                     GAsyncResult *result,
+                                     GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_press_key_async,
+                                  error);
+}
+
+void
+gautogui_controller_type_text_async(GAutoguiController *self,
+                                    const gchar *utf8,
+                                    GCancellable *cancellable,
+                                    GAsyncReadyCallback callback,
+                                    gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_TYPE_TEXT;
+  data->utf8 = g_strdup(utf8);
+  data->delay_ms = DEFAULT_TYPE_TEXT_DELAY_MS;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_type_text_async);
+}
+
+gboolean
+gautogui_controller_type_text_finish(GAutoguiController *self,
+                                     GAsyncResult *result,
+                                     GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_type_text_async,
+                                  error);
+}
+
+void
+gautogui_controller_type_text_with_delay_async(GAutoguiController *self,
+                                               const gchar *utf8,
+                                               guint delay_ms,
+                                               GCancellable *cancellable,
+                                               GAsyncReadyCallback callback,
+                                               gpointer user_data)
+{
+  AsyncTaskData *data;
+
+  g_return_if_fail(GAUTOGUI_IS_CONTROLLER(self));
+
+  data = g_new0(AsyncTaskData, 1);
+  data->operation = ASYNC_OPERATION_TYPE_TEXT;
+  data->utf8 = g_strdup(utf8);
+  data->delay_ms = delay_ms;
+
+  start_async_operation(self,
+                        data,
+                        cancellable,
+                        callback,
+                        user_data,
+                        (gpointer)gautogui_controller_type_text_with_delay_async);
+}
+
+gboolean
+gautogui_controller_type_text_with_delay_finish(GAutoguiController *self,
+                                                GAsyncResult *result,
+                                                GError **error)
+{
+  return finish_boolean_operation(self,
+                                  result,
+                                  (gpointer)gautogui_controller_type_text_with_delay_async,
+                                  error);
 }
 
 void

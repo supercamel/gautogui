@@ -54,6 +54,14 @@ Automation calls:
 - `gautogui_controller_type_text()`
 - `gautogui_controller_type_text_with_delay()`
 
+The pointer/query and injection calls also expose GIO-style asynchronous
+variants named `*_async()` and `*_finish()`. These wrappers run the synchronous
+backend operation in a `GTask` worker thread, return results through the
+controller's caller context, and are intended for bindings such as Vala, Python,
+and SqGI that can map GLib async patterns onto `await`-style code. Cancellation
+is checked before the worker starts; once native input injection has begun, the
+operation runs to completion.
+
 The portable key enum covers letters, digits, common punctuation, navigation
 keys, modifiers, and F1-F24. `type_text()` is the preferred API for entering
 text because it can handle layout-specific modifier needs. `type_text()` uses a

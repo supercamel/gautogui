@@ -3,6 +3,16 @@
 
 #include <glib-object.h>
 
+#ifdef __GI_SCANNER__
+#include <gio/gio.h>
+#else
+typedef struct _GCancellable GCancellable;
+typedef struct _GAsyncResult GAsyncResult;
+typedef void (*GAsyncReadyCallback)(GObject *source_object,
+                                    GAsyncResult *res,
+                                    gpointer user_data);
+#endif
+
 G_BEGIN_DECLS
 
 #if defined(_WIN32) && !defined(GAUTOGUI_STATIC_COMPILATION)
@@ -251,6 +261,120 @@ GAUTOGUI_API gboolean gautogui_controller_type_text_with_delay(GAutoguiControlle
                                                                const gchar *utf8,
                                                                guint delay_ms,
                                                                GError **error);
+
+/**
+ * gautogui_controller_get_mouse_position_async:
+ * @self: a #GAutoguiController
+ * @cancellable: (nullable): optional cancellation object
+ * @callback: (scope async) (nullable): callback to invoke when the operation completes
+ * @user_data: user data for @callback
+ *
+ * Asynchronous form of gautogui_controller_get_mouse_position().
+ */
+GAUTOGUI_API void gautogui_controller_get_mouse_position_async(GAutoguiController *self,
+                                                               GCancellable *cancellable,
+                                                               GAsyncReadyCallback callback,
+                                                               gpointer user_data);
+/**
+ * gautogui_controller_get_mouse_position_finish:
+ * @self: a #GAutoguiController
+ * @result: a #GAsyncResult
+ * @x: (out) (optional): return location for the screen X coordinate
+ * @y: (out) (optional): return location for the screen Y coordinate
+ * @error: return location for a #GError, or %NULL
+ *
+ * Finishes gautogui_controller_get_mouse_position_async().
+ *
+ * Returns: %TRUE on success, %FALSE with @error set on failure
+ */
+GAUTOGUI_API gboolean gautogui_controller_get_mouse_position_finish(GAutoguiController *self,
+                                                                    GAsyncResult *result,
+                                                                    gint *x,
+                                                                    gint *y,
+                                                                    GError **error);
+GAUTOGUI_API void gautogui_controller_move_mouse_async(GAutoguiController *self,
+                                                       gint x,
+                                                       gint y,
+                                                       GCancellable *cancellable,
+                                                       GAsyncReadyCallback callback,
+                                                       gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_move_mouse_finish(GAutoguiController *self,
+                                                            GAsyncResult *result,
+                                                            GError **error);
+GAUTOGUI_API void gautogui_controller_mouse_down_async(GAutoguiController *self,
+                                                       GAutoguiMouseButton button,
+                                                       GCancellable *cancellable,
+                                                       GAsyncReadyCallback callback,
+                                                       gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_mouse_down_finish(GAutoguiController *self,
+                                                            GAsyncResult *result,
+                                                            GError **error);
+GAUTOGUI_API void gautogui_controller_mouse_up_async(GAutoguiController *self,
+                                                     GAutoguiMouseButton button,
+                                                     GCancellable *cancellable,
+                                                     GAsyncReadyCallback callback,
+                                                     gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_mouse_up_finish(GAutoguiController *self,
+                                                          GAsyncResult *result,
+                                                          GError **error);
+GAUTOGUI_API void gautogui_controller_click_async(GAutoguiController *self,
+                                                  GAutoguiMouseButton button,
+                                                  GCancellable *cancellable,
+                                                  GAsyncReadyCallback callback,
+                                                  gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_click_finish(GAutoguiController *self,
+                                                       GAsyncResult *result,
+                                                       GError **error);
+GAUTOGUI_API void gautogui_controller_scroll_async(GAutoguiController *self,
+                                                   gint dx,
+                                                   gint dy,
+                                                   GCancellable *cancellable,
+                                                   GAsyncReadyCallback callback,
+                                                   gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_scroll_finish(GAutoguiController *self,
+                                                        GAsyncResult *result,
+                                                        GError **error);
+GAUTOGUI_API void gautogui_controller_key_down_async(GAutoguiController *self,
+                                                     GAutoguiKey key,
+                                                     GCancellable *cancellable,
+                                                     GAsyncReadyCallback callback,
+                                                     gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_key_down_finish(GAutoguiController *self,
+                                                          GAsyncResult *result,
+                                                          GError **error);
+GAUTOGUI_API void gautogui_controller_key_up_async(GAutoguiController *self,
+                                                   GAutoguiKey key,
+                                                   GCancellable *cancellable,
+                                                   GAsyncReadyCallback callback,
+                                                   gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_key_up_finish(GAutoguiController *self,
+                                                        GAsyncResult *result,
+                                                        GError **error);
+GAUTOGUI_API void gautogui_controller_press_key_async(GAutoguiController *self,
+                                                      GAutoguiKey key,
+                                                      GCancellable *cancellable,
+                                                      GAsyncReadyCallback callback,
+                                                      gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_press_key_finish(GAutoguiController *self,
+                                                           GAsyncResult *result,
+                                                           GError **error);
+GAUTOGUI_API void gautogui_controller_type_text_async(GAutoguiController *self,
+                                                      const gchar *utf8,
+                                                      GCancellable *cancellable,
+                                                      GAsyncReadyCallback callback,
+                                                      gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_type_text_finish(GAutoguiController *self,
+                                                           GAsyncResult *result,
+                                                           GError **error);
+GAUTOGUI_API void gautogui_controller_type_text_with_delay_async(GAutoguiController *self,
+                                                                 const gchar *utf8,
+                                                                 guint delay_ms,
+                                                                 GCancellable *cancellable,
+                                                                 GAsyncReadyCallback callback,
+                                                                 gpointer user_data);
+GAUTOGUI_API gboolean gautogui_controller_type_text_with_delay_finish(GAutoguiController *self,
+                                                                      GAsyncResult *result,
+                                                                      GError **error);
 
 G_END_DECLS
 

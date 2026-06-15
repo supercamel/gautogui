@@ -12,6 +12,8 @@ It provides a `GAutoguiController` object that can:
 Text injection is paced by default to avoid dropped keystrokes in real
 applications. Use `gautogui_controller_type_text_with_delay()` or the
 equivalent binding method to choose the inter-character delay explicitly.
+Automation methods also have GIO-style `*_async()`/`*_finish()` variants for
+callers that want to keep their main loop responsive while an operation runs.
 
 ## Platform support
 
@@ -31,6 +33,17 @@ meson compile -C build
 meson test -C build
 ```
 
+## Documentation
+
+Read the Docs sources live in `docs/`. To build them locally:
+
+```sh
+python3 -m venv /tmp/gautogui-docs-venv
+. /tmp/gautogui-docs-venv/bin/activate
+pip install -r docs/requirements.txt
+sphinx-build -W -b html docs docs/_build/html
+```
+
 ## Language Examples
 
 From the build tree:
@@ -46,9 +59,9 @@ unavailable. For XWayland-limited testing, prefix the command with
 `GAUTOGUI_FORCE_X11=1`.
 
 There is also a Windows-focused SqGI automation demo that uses SqGI
-`async`/`await`, moves the mouse, opens the Start menu with the Super/Windows
-key, launches Notepad, and types a short line with an explicit
-inter-character delay:
+`async`/`await` over gautogui's async automation API, moves the mouse, opens
+the Start menu with the Super/Windows key, launches Notepad, and types a short
+line with an explicit inter-character delay:
 
 ```sh
 sqgi examples/notepad-demo.nut

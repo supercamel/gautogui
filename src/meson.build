@@ -33,6 +33,7 @@ endif
 all_deps = [
   glib_dep,
   gobject_dep,
+  gio_dep,
 ] + platform_deps
 
 libgautogui = library(
@@ -51,7 +52,7 @@ install_headers(public_headers, subdir: 'gautogui-1.0/gautogui')
 gautogui_dep = declare_dependency(
   link_with: libgautogui,
   include_directories: gautogui_inc,
-  dependencies: [glib_dep, gobject_dep],
+  dependencies: [glib_dep, gobject_dep, gio_dep],
 )
 
 pkg.generate(
@@ -60,7 +61,7 @@ pkg.generate(
   name: 'gautogui',
   description: 'Cross-platform system-wide GUI input monitoring and automation',
   subdirs: 'gautogui-1.0',
-  requires: ['glib-2.0', 'gobject-2.0'],
+  requires: ['glib-2.0', 'gobject-2.0', 'gio-2.0'],
   requires_private: platform_pkg_deps,
 )
 
@@ -77,7 +78,7 @@ if gir_dep.found()
     identifier_prefix: 'GAutogui',
     symbol_prefix: 'gautogui',
     header: 'gautogui/gautogui.h',
-    includes: ['GObject-2.0'],
+    includes: ['GObject-2.0', 'Gio-2.0'],
     export_packages: 'gautogui-1.0',
     install: true,
   )
@@ -86,7 +87,7 @@ if gir_dep.found()
     gautogui_vapi_dep = gnome.generate_vapi(
       'gautogui-1.0',
       sources: gautogui_gir[0],
-      packages: ['gobject-2.0'],
+      packages: ['gobject-2.0', 'gio-2.0'],
       install: true,
     )
   endif
